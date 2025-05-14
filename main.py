@@ -21,8 +21,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# --- Placeholder for app (will be created in main()) ---
-application = None
+# --- Aiohttp Web App ---
+web_app = web.Application()
+
+# --- Global application placeholder ---
+application = None  # Define globally so it can be accessed in webhooks
 
 async def send_startup_message(app):
     bot_version, bt_time = get_bot_info()
@@ -52,12 +55,9 @@ def create_telegram_webhook(app_instance):
         except Exception as e:
             logger.error(f"Webhook processing failed: {e}")
         return web.Response()
+
     return telegram_webhook
 
-
-# --- Aiohttp Web App ---
-web_app = web.Application()
-# Will be added later in main() after bot_token is known
 
 # --- Startup & Shutdown Hooks ---
 async def on_startup(app):
@@ -65,9 +65,6 @@ async def on_startup(app):
 
 async def on_shutdown(app):
     logger.info("Shutting down bot...")
-
-web_app.on_startup.append(on_startup)
-web_app.on_shutdown.append(on_shutdown)
 
 async def main():
     global application
@@ -81,10 +78,6 @@ async def main():
         .token(bot_token)
         .build()
     )
-    
-    # After application = ApplicationBuilder().token(...).build()
-    web_app.router.add_post("/webhook", create_telegram_webhook(application))  # ✅ Route for Telegram
-    web_app.router.add_get("/", lambda request: web.Response(text="Bot is alive."))  # Optional health check
 
     # Inject bot_data
     application.bot_data["ROUTES_MAP"] = {
@@ -102,7 +95,7 @@ async def main():
     ))
 
     # Add Telegram webhook endpoint
-    web_app.router.add_post("/webhook", create_telegram_webhook(application))
+    web_app.router.add_post("/webhook", create_telegram_webhook(application))  # ✅ Route for Telegram
 
     # Start web server
     runner = web.AppRunner(web_app)
@@ -113,6 +106,7 @@ async def main():
     logger.info(f"Bot running at http://0.0.0.0:{PORT}")
     while True:
         await asyncio.sleep(3600)  # Keeps the bot alive
+
 
 # --- Run App ---
 if __name__ == "__main__":
